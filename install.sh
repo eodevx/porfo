@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -e
 
-sudo apt update  > /dev/null 2>&1
+
 
 options=("Client" "Server" "Quit")
 
-echo "Select architecture:"
+echo "Select Install Type:"
 select opt in "${options[@]}"; do
     case $opt in
         "Quit")
@@ -16,7 +16,7 @@ select opt in "${options[@]}"; do
         *)
             if [[ -n "$opt" ]]; then
                 echo "You selected: $opt"
-                ARCH="$opt"
+                INSTALL_TYPE="$opt"
                 break
             else
                 echo "Invalid selection."
@@ -25,8 +25,8 @@ select opt in "${options[@]}"; do
     esac
 done
 
-
-
+sudo apt update  > /dev/null 2>&1
+sudo apt upgrade -y > /dev/null 2>&1
 
 VERSION="0.67.0"
 
@@ -57,8 +57,8 @@ spinner_start() {
 # Spinner Stop
 spinner_stop() {
     if [ -n "$SPINNER_PID" ]; then
-        kill "$SPINNER_PID" 2>/dev/null
-        wait "$SPINNER_PID" 2>/dev/null
+        kill "$SPINNER_PID" 2>/dev/null || true
+        wait "$SPINNER_PID" 2>/dev/null || true
         printf "\r✔ %s\n" "$SPINNER_MSG"
         unset SPINNER_PID
     fi
@@ -150,6 +150,8 @@ case "$RAW_ARCH" in
 esac
 spinner_stop
 
+cd "$HOME/porfo"
+
 # Build download URL
 FILE="frp_${VERSION}_${OS}_${ARCH}.tar.gz"
 URL="https://github.com/fatedier/frp/releases/download/v${VERSION}/${FILE}"
@@ -174,11 +176,15 @@ sudo apt install -y build-essential curl git \
   libsqlite3-dev libffi-dev liblzma-dev tk-dev > /dev/null 2>&1
 spinner_stop
 
+# Cleanup downloaded artifacts
+rm -f "$FILE"
+rm -rf "frp_${VERSION}_${OS}_${ARCH}"
+
 # Install Pyenv
 spinner_start "Installing Pyenv"
 PYENV_DIR="$HOME/.pyenv"
 if [ ! -d "$PYENV_DIR" ]; then
-    curl https://pyenv.run | bash
+    curl https://pyenv.run | bash  > /dev/null 2>&1
     echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.bashrc
     echo 'export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.bashrc
     echo 'eval "$(pyenv init -)"' >> ~/.bashrc
@@ -190,28 +196,27 @@ export PYENV_ROOT="$HOME/.pyenv"
 export PATH="$PYENV_ROOT/bin:$PATH"
 eval "$(pyenv init -)"
 
-run_with_spinner "Installing Python" pyenv install 3.12
+run_with_spinner "Installing Python" pyenv install -s 3.12
 
 # Create Venv
 spinner_start "Creating Virtual Environment"
 mkdir -p "$HOME/porfo"
-cd "$HOME/porfo"
 export PYENV_VERSION=3.12
-python -m venv .venv
+pyenv local 3.12
+python -m venv .venv  > /dev/null 2>&1
 spinner_stop
 
 source .venv/bin/activate
 
 spinner_start "Installing Porfo"
 
-wget -O /usr/bin
-if [ "$opt" == "Client" ]; then
+if [ "$INSTALL_TYPE" == "Client" ]; then
     sudo wget https://raw.githubusercontent.com/eodevx/porfo/refs/heads/main/porfo-client.sh -O /usr/bin/porfo-client.sh
     sudo chmod +x /usr/bin/porfo-client.sh
     sudo mv frp*/frpc /usr/bin/porfo-frpc
     sudo chmod +x /usr/bin/porfo-frpc
 
-elif [ "$opt" == "Server" ]; then
+elif [ "$INSTALL_TYPE" == "Server" ]; then
     sudo wget https://raw.githubusercontent.com/eodevx/porfo/refs/heads/main/porfo-server.sh -O /usr/bin/porfo-server.sh
     sudo chmod +x /usr/bin/porfo-server.sh
     sudo mv frp*/frps /usr/bin/porfo-frps
@@ -229,8 +234,8 @@ spinner_stop
 
 
 if command -v systemctl >/dev/null 2>&1; then
-if [ "$opt" == "Client" ]; then
-    cat > /etc/systemd/system/porfo-client.service <<EOF
+if [ "$INSTALL_TYPE" == "Client" ]; then
+    sudo tee > /etc/systemd/system/porfo-client.service <<EOF
 [Unit]
 Description=Porfo Client Service
 After=network.target
@@ -250,8 +255,8 @@ sudo systemctl enable porfo-client.service
 sudo systemctl start porfo-client.service
 sudo systemctl status porfo-client.service
 fi
-if [ "$opt" == "Server" ]; then
-    cat > /etc/systemd/system/porfo-server.service <<EOF
+if [ "$INSTALL_TYPE" == "Server" ]; then
+    sudo tee > /etc/systemd/system/porfo-server.service <<EOF
 [Unit]
 Description=Porfo Server Service
 After=network.target
@@ -275,9 +280,9 @@ else
     echo "systemd is NOT installed"
 fi
 
-if [ "$opt" == "Client" ]; then
+if [ "$INSTALL_TYPE" == "Client" ]; then
 wget https://raw.githubusercontent.com/eodevx/porfo/refs/heads/main/client.py -O "$HOME/porfo/client.py"
 fi
-if [ "$opt" == "Server" ]; then
+if [ "$INSTALL_TYPE" == "Server" ]; then
 wget https://raw.githubusercontent.com/eodevx/porfo/refs/heads/main/server.py -O "$HOME/porfo/server.py"
 fi
