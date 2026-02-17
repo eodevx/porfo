@@ -194,9 +194,13 @@ run_with_spinner "Installing Python" pyenv install 3.12
 
 # Create Venv
 spinner_start "Creating Virtual Environment"
+mkdir -p "$HOME/porfo"
+cd "$HOME/porfo"
 export PYENV_VERSION=3.12
 python -m venv .venv
 spinner_stop
+
+
 
 echo "✔ Virtual environment created"
 echo ""
@@ -205,17 +209,70 @@ echo "  source .venv/bin/activate"
 
 source .venv/bin/activate
 
-cat > myfile.txt <<EOF
 
-EOF
+
+
+spinner_start "Installing Porfo"
+
+wget -O /usr/bin
+if [ "$opt" == "Client" ]; then
+    sudo wget https://raw.githubusercontent.com/eodevx/porfo/refs/heads/main/porfo-client.sh -O /usr/bin/porfo-client.sh
+    sudo chmod +x /usr/bin/porfo-client.sh
+    mv frp*/frpc /usr/bin/porfo-frpc
+    chmod +x /usr/bin/porfo-frpc
+
+elif [ "$opt" == "Server" ]; then
+    sudo wget https://raw.githubusercontent.com/eodevx/porfo/refs/heads/main/porfo-server.sh -O /usr/bin/porfo-server.sh
+    sudo chmod +x /usr/bin/porfo-server.sh
+    mv frp*/frps /usr/bin/porfo-frps
+    chmod +x /usr/bin/porfo-frps
+else
+    echo "Option Invalid, Exiting..."
+    exit
+fi
+
+spinner_stop
+
 
 # Check for systemd
 # Maybe also Cron in the future, but i havent used cron like ever
 
+
 if command -v systemctl >/dev/null 2>&1; then
-    echo "systemd is installed (systemctl available)"
+if [ "$opt" == "Client" ]; then
+    cat > /etc/systemd/system/porfo-client.service <<EOF
+[Unit]
+Description=Porfo Client Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/bin/bash /usr/bin/porfo-client.sh
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
+EOF
+fi
+if [ "$opt" == "Server" ]; then
+    cat > /etc/systemd/system/porfo-server.service <<EOF
+[Unit]
+Description=Porfo Server Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/bin/bash /usr/bin/porfo-server.sh
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
+EOF
+fi
 else
     echo "systemd is NOT installed"
 fi
-
-wget -O /usr/bin
