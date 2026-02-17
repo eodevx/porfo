@@ -200,17 +200,7 @@ export PYENV_VERSION=3.12
 python -m venv .venv
 spinner_stop
 
-
-
-echo "✔ Virtual environment created"
-echo ""
-echo "Setup complete! To activate the environment, run:"
-echo "  source .venv/bin/activate"
-
 source .venv/bin/activate
-
-
-
 
 spinner_start "Installing Porfo"
 
@@ -218,14 +208,14 @@ wget -O /usr/bin
 if [ "$opt" == "Client" ]; then
     sudo wget https://raw.githubusercontent.com/eodevx/porfo/refs/heads/main/porfo-client.sh -O /usr/bin/porfo-client.sh
     sudo chmod +x /usr/bin/porfo-client.sh
-    mv frp*/frpc /usr/bin/porfo-frpc
-    chmod +x /usr/bin/porfo-frpc
+    sudo mv frp*/frpc /usr/bin/porfo-frpc
+    sudo chmod +x /usr/bin/porfo-frpc
 
 elif [ "$opt" == "Server" ]; then
     sudo wget https://raw.githubusercontent.com/eodevx/porfo/refs/heads/main/porfo-server.sh -O /usr/bin/porfo-server.sh
     sudo chmod +x /usr/bin/porfo-server.sh
-    mv frp*/frps /usr/bin/porfo-frps
-    chmod +x /usr/bin/porfo-frps
+    sudo mv frp*/frps /usr/bin/porfo-frps
+    sudo chmod +x /usr/bin/porfo-frps
 else
     echo "Option Invalid, Exiting..."
     exit
@@ -255,6 +245,10 @@ RestartSec=5s
 [Install]
 WantedBy=multi-user.target
 EOF
+sudo systemctl daemon-reload
+sudo systemctl enable porfo-client.service
+sudo systemctl start porfo-client.service
+sudo systemctl status porfo-client.service
 fi
 if [ "$opt" == "Server" ]; then
     cat > /etc/systemd/system/porfo-server.service <<EOF
@@ -272,7 +266,18 @@ RestartSec=5s
 [Install]
 WantedBy=multi-user.target
 EOF
+sudo systemctl daemon-reload
+sudo systemctl enable porfo-server.service
+sudo systemctl start porfo-server.service
+sudo systemctl status porfo-server.service
 fi
 else
     echo "systemd is NOT installed"
+fi
+
+if [ "$opt" == "Client" ]; then
+wget https://raw.githubusercontent.com/eodevx/porfo/refs/heads/main/client.py -O "$HOME/porfo/client.py"
+fi
+if [ "$opt" == "Server" ]; then
+wget https://raw.githubusercontent.com/eodevx/porfo/refs/heads/main/server.py -O "$HOME/porfo/server.py"
 fi
