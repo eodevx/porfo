@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -e
 
-
-
 options=("Client" "Server" "Quit")
 
 echo "Select Install Type:"
@@ -24,13 +22,6 @@ select opt in "${options[@]}"; do
             ;;
     esac
 done
-
-spinner_start "Updating System Packages"
-sudo apt update  > /dev/null 2>&1
-sudo apt upgrade -y > /dev/null 2>&1
-spinner_stop
-
-VERSION="0.67.0"
 
 # Spinner
 SPINNER_DEFAULT='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
@@ -81,7 +72,12 @@ run_with_spinner() {
     return $status
 }
 
+spinner_start "Updating System Packages"
+sudo apt update  > /dev/null 2>&1
+sudo apt upgrade -y > /dev/null 2>&1
+spinner_stop
 
+VERSION="0.67.0"
 
 # Detect OS
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
