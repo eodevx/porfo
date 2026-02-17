@@ -242,7 +242,7 @@ spinner_stop
 if command -v systemctl >/dev/null 2>&1; then
 spinner_start "Configuring Systemd Service"
 if [ "$INSTALL_TYPE" == "Client" ]; then
-    sudo tee > /etc/systemd/system/porfo-client.service <<EOF
+sudo tee /etc/systemd/system/porfo-client.service > /dev/null <<EOF
 [Unit]
 Description=Porfo Client Service
 After=network.target
@@ -263,7 +263,7 @@ sudo systemctl start porfo-client.service
 sudo systemctl status porfo-client.service > /dev/null 2>&1
 fi
 if [ "$INSTALL_TYPE" == "Server" ]; then
-    sudo tee > /etc/systemd/system/porfo-server.service <<EOF
+sudo tee /etc/systemd/system/porfo-server.service > /dev/null <<EOF
 [Unit]
 Description=Porfo Server Service
 After=network.target
