@@ -3,7 +3,7 @@ set -e
 
 options=("Client" "Server" "Quit")
 
-echo "Select Install Type:"
+echo "Select Install Type (Setup Server before Client):"
 select opt in "${options[@]}"; do
     case $opt in
         "Quit")
@@ -296,3 +296,39 @@ if [ "$INSTALL_TYPE" == "Server" ]; then
     wget -q https://raw.githubusercontent.com/eodevx/porfo/refs/heads/main/server.py -O "$HOME/porfo/server.py"
 fi
 spinner_stop
+
+
+spinner_start "Configuring Porfo"
+if [ "$INSTALL_TYPE" == "Client" ]; then
+    read -p "Please enter the token the server generated, if you don't have it please run cat $HOME/porfo/token: " SERVER_GENERATED_TOKEN_CLIENT
+    DECODED_TOKEN=$(echo "$SERVER_GENERATED_TOKEN_CLIENT"| base64 --decode)
+    IFS=';' read -r SERVER_IP SERVER_SECRET <<< "$DECODED_TOKEN"
+    sudo tee "$HOME/porfo/config.toml" > /dev/null <<EOF
+serverAddr = "$SERVER_IP"
+serverPort = 7000
+auth.method = "token"
+auth.token = "$SERVER_SECRET"
+EOF
+
+fi
+if [ "$INSTALL_TYPE" == "Server" ]; then
+    EXTERNAL_IP=$(curl ifconfig.me)
+    RANDOM_SECRET=$(openssl rand -hex 32)
+    sudo tee "$HOME/porfo/config.toml" > /dev/null <<EOF
+{
+auth.method = "token"
+auth.token = "$RANDOM_SECRET"
+bindPort = 7000
+EOF
+    sudo tee "$HOME/porfo/token" > /dev/null <<EOF
+$(echo -n "$EXTERNAL_IP;$RANDOM_SECRET" | base64 -w 0)
+    echo "Server Generated Token: $(echo -n "$EXTERNAL_IP;$RANDOM_SECRET" | base64 -w 0)"
+EOF
+fi
+spinner_stop
+
+
+
+if [ "$INSTALL_TYPE" == "Client" ]; then
+    wget -q https://raw.githubusercontent.com/eodevx/porfo/refs/heads/main/client.py -O "$HOME/porfo/client.py"
+fi
