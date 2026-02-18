@@ -25,7 +25,6 @@ done
 
 # Spinner
 SPINNER_DEFAULT='⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
-SPINNER_LINE='▁▂▃▄▅▆▇█▇▆▅▄▃▂'
 
 spinner_start() {
     local msg="${1:-Loading...}"
@@ -72,10 +71,7 @@ run_with_spinner() {
     return $status
 }
 
-spinner_start "Updating System Packages"
-sudo apt update  > /dev/null 2>&1
-sudo apt upgrade -y > /dev/null 2>&1
-spinner_stop
+run_with_spinner "Updating Package Index" sudo apt update
 
 VERSION="0.67.0"
 
@@ -160,10 +156,10 @@ echo "Detected Arch: $ARCH"
 echo "Downloading: $FILE"
 
 # Download
-run_with_spinner "Downloading FRP" curl -L -o "$FILE" "$URL"  > /dev/null 2>&1
+run_with_spinner "Downloading FRP" curl -sL -o "$FILE" "$URL"
 
 # Extract
-run_with_spinner "Extracting FRP" tar -xzf "$FILE"  > /dev/null 2>&1
+run_with_spinner "Extracting FRP" tar -xzf "$FILE"
 
 FRP_DIR="frp_${VERSION}_${OS}_${ARCH}"
 
@@ -221,11 +217,11 @@ source .venv/bin/activate
 spinner_start "Installing Porfo"
 
 if [ "$INSTALL_TYPE" == "Client" ]; then
-    sudo wget https://raw.githubusercontent.com/eodevx/porfo/refs/heads/main/porfo-client.sh -O /usr/bin/porfo-client.sh
+    sudo wget -q https://raw.githubusercontent.com/eodevx/porfo/refs/heads/main/porfo-client.sh -O /usr/bin/porfo-client.sh
     sudo chmod +x /usr/bin/porfo-client.sh
 
 elif [ "$INSTALL_TYPE" == "Server" ]; then
-    sudo wget https://raw.githubusercontent.com/eodevx/porfo/refs/heads/main/porfo-server.sh -O /usr/bin/porfo-server.sh
+    sudo wget -q https://raw.githubusercontent.com/eodevx/porfo/refs/heads/main/porfo-server.sh -O /usr/bin/porfo-server.sh
     sudo chmod +x /usr/bin/porfo-server.sh
 else
     echo "Option Invalid, Exiting..."
@@ -235,9 +231,53 @@ fi
 spinner_stop
 
 
+spinner_start "Downloading Porfo Scripts"
+if [ "$INSTALL_TYPE" == "Client" ]; then
+    wget -q https://raw.githubusercontent.com/eodevx/porfo/refs/heads/main/client.py -O "$HOME/porfo/client.py"
+fi
+if [ "$INSTALL_TYPE" == "Server" ]; then
+    wget -q https://raw.githubusercontent.com/eodevx/porfo/refs/heads/main/server.py -O "$HOME/porfo/server.py"
+fi
+spinner_stop
+
+
+# Configure Porfo — interactive prompts must happen OUTSIDE the spinner
+if [ "$INSTALL_TYPE" == "Client" ]; then
+    read -p "Please enter the token the server generated, if you don't have it please run cat \$HOME/porfo/token: " SERVER_GENERATED_TOKEN_CLIENT
+    DECODED_TOKEN=$(echo "$SERVER_GENERATED_TOKEN_CLIENT" | base64 --decode 2>/dev/null)
+    if [ -z "$DECODED_TOKEN" ] || ! echo "$DECODED_TOKEN" | grep -q ';'; then
+        echo "Error: Invalid token. Expected a base64-encoded string containing 'IP;SECRET'."
+        exit 1
+    fi
+    IFS=';' read -r SERVER_IP SERVER_SECRET <<< "$DECODED_TOKEN"
+    spinner_start "Writing Client Config"
+    tee "$HOME/porfo/config.toml" > /dev/null <<EOF
+serverAddr = "$SERVER_IP"
+serverPort = 7000
+auth.method = "token"
+auth.token = "$SERVER_SECRET"
+EOF
+    spinner_stop
+fi
+if [ "$INSTALL_TYPE" == "Server" ]; then
+    spinner_start "Writing Server Config"
+    EXTERNAL_IP=$(curl -s ifconfig.me)
+    RANDOM_SECRET=$(openssl rand -hex 32)
+    tee "$HOME/porfo/config.toml" > /dev/null <<EOF
+bindPort = 7000
+auth.method = "token"
+auth.token = "$RANDOM_SECRET"
+EOF
+    TOKEN_VALUE=$(echo -n "$EXTERNAL_IP;$RANDOM_SECRET" | base64 -w 0)
+    echo "$TOKEN_VALUE" > "$HOME/porfo/token"
+    spinner_stop
+    echo "Server Generated Token: $TOKEN_VALUE"
+    echo "Share this token with clients so they can connect."
+fi
+
+
 # Check for systemd
 # Maybe also Cron in the future, but i havent used cron like ever
-
 
 if command -v systemctl >/dev/null 2>&1; then
 spinner_start "Configuring Systemd Service"
@@ -288,47 +328,4 @@ else
     echo "systemd is NOT installed"
 fi
 
-spinner_start "Downloading Porfo Scripts"
-if [ "$INSTALL_TYPE" == "Client" ]; then
-    wget -q https://raw.githubusercontent.com/eodevx/porfo/refs/heads/main/client.py -O "$HOME/porfo/client.py"
-fi
-if [ "$INSTALL_TYPE" == "Server" ]; then
-    wget -q https://raw.githubusercontent.com/eodevx/porfo/refs/heads/main/server.py -O "$HOME/porfo/server.py"
-fi
-spinner_stop
-
-
-spinner_start "Configuring Porfo"
-if [ "$INSTALL_TYPE" == "Client" ]; then
-    read -p "Please enter the token the server generated, if you don't have it please run cat $HOME/porfo/token: " SERVER_GENERATED_TOKEN_CLIENT
-    DECODED_TOKEN=$(echo "$SERVER_GENERATED_TOKEN_CLIENT"| base64 --decode)
-    IFS=';' read -r SERVER_IP SERVER_SECRET <<< "$DECODED_TOKEN"
-    sudo tee "$HOME/porfo/config.toml" > /dev/null <<EOF
-serverAddr = "$SERVER_IP"
-serverPort = 7000
-auth.method = "token"
-auth.token = "$SERVER_SECRET"
-EOF
-
-fi
-if [ "$INSTALL_TYPE" == "Server" ]; then
-    EXTERNAL_IP=$(curl ifconfig.me)
-    RANDOM_SECRET=$(openssl rand -hex 32)
-    sudo tee "$HOME/porfo/config.toml" > /dev/null <<EOF
-{
-auth.method = "token"
-auth.token = "$RANDOM_SECRET"
-bindPort = 7000
-EOF
-    sudo tee "$HOME/porfo/token" > /dev/null <<EOF
-$(echo -n "$EXTERNAL_IP;$RANDOM_SECRET" | base64 -w 0)
-    echo "Server Generated Token: $(echo -n "$EXTERNAL_IP;$RANDOM_SECRET" | base64 -w 0)"
-EOF
-fi
-spinner_stop
-
-
-
-if [ "$INSTALL_TYPE" == "Client" ]; then
-    wget -q https://raw.githubusercontent.com/eodevx/porfo/refs/heads/main/client.py -O "$HOME/porfo/client.py"
-fi
+echo "Porfo installation complete!"
